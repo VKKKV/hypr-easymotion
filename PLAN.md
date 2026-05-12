@@ -10,14 +10,15 @@ Hyprland easymotion 窗口快速跳转，纯 Lua + Zig 实现。
 
 | 组件 | 版本 | 备注 |
 |---|---|---|
+| OS | Arch Linux | 桌面环境 |
 | Hyprland | 0.55.0 | Lua config, hyprlang 已废弃 |
 | Lua | 5.5.0 / LuaJIT 2.1 | Hyprland 内嵌 Lua 5.5 |
-| Zig | 0.16.0 | |
-| wayland | 1.25.0 | libwayland-client |
+| Zig | 0.16.0 | Arch 官方包 |
+| wayland | 1.25.0 | libwayland-client (Arch: wayland) |
 | wayland-protocols | 1.48 | 含 wlr-layer-shell-unstable-v1 |
-| cairo | 1.18.4 | 2D 矢量图形 |
-| pango | 1.57.1 | 文字排版 + 字体渲染 |
-| xkbcommon | 1.13.1 | 键盘 keymap / keysym 解析 |
+| cairo | 1.18.4 | 2D 矢量图形 (Arch: cairo) |
+| pango | 1.57.1 | 文字排版 + 字体渲染 (Arch: pango) |
+| xkbcommon | 1.13.1 | 键盘 keymap / keysym 解析 (Arch: libxkbcommon) |
 
 ## 架构
 
