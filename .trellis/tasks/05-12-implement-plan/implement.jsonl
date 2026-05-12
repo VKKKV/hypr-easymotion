@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend/system integration guidelines for the Zig binary, build flow, and error handling"}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Conventions for organizing the Zig binary and supporting files"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"How the implementation should report parse, build, and runtime failures"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Code quality and forbidden patterns for the implementation sub-agent"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"This task spans Lua config, JSON transport, and Zig rendering/input capture"}
