@@ -34,7 +34,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 - Lua entrypoint: `require("easymotion").activate(overrides?) -> true | nil, err`
 - Renderer CLI: `easymotion-render <json-file>`
-- Default action template: `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:{}"}))'`
+- Default action template: `hyprctl dispatch focuswindow address:{}`
 
 #### 3. Contracts
 
@@ -62,7 +62,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 #### 5. Good/Base/Bad Cases
 
-- Good: Lua emits multiple non-fullscreen windows with full style; Zig renders labels and action focuses the selected address.
+- Good: Lua emits multiple non-fullscreen windows with full style; Zig renders labels and the default action focuses the selected address via `hyprctl dispatch focuswindow`.
 - Base: Empty eligible window list emits an empty `labels` array; renderer should not crash.
 - Bad: Address contains shell metacharacters; renderer must reject it before executing `system()`.
 
@@ -133,6 +133,7 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 - Rendered label positions are Hyprland global coordinates offset by the target output's `x` and `y`.
 - If output geometry or size changes after initial render, the renderer must re-render with fresh offsets and buffer dimensions.
 - The renderer may grab keyboard input, but it must not leave a blank full-screen layer when labels exist and Wayland has supplied usable dimensions.
+- If a matching label triggers an external focus action, the renderer must first destroy its exclusive-keyboard overlay objects and wait for compositor acknowledgement before executing that action.
 
 #### 4. Validation & Error Matrix
 
@@ -140,12 +141,15 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 - Output dimensions still fallback-sized (`<= 1`) -> defer rendering, continue dispatching Wayland events.
 - Shared-memory file, mmap, pool, or buffer creation failure -> render error -> non-zero renderer exit.
 - Layer surface closed by compositor -> stop the event loop without running an action.
+- Overlay teardown flush/roundtrip failure before action -> renderer exits non-zero instead of running the external focus command while it may still hold keyboard focus.
 
 #### 5. Good/Base/Bad Cases
 
 - Good: output geometry, mode, and layer configure arrive; renderer allocates a correctly sized buffer, draws labels with output offsets, and commits damage.
+- Good: after a label is selected, the renderer tears down keyboard/surface state, waits for the compositor to process that teardown, then runs `hyprctl dispatch focuswindow address:<address>`.
 - Base: configure reports zero width/height; renderer uses the current output mode dimensions once available.
 - Bad: renderer commits a buffer while output dimensions are still the 1x1 fallback, causing an invisible keyboard-grabbing overlay.
+- Bad: renderer runs the focus command before the compositor has processed overlay teardown, so the overlay client may still own exclusive keyboard focus.
 
 #### 6. Tests Required
 
