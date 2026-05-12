@@ -50,6 +50,7 @@ pub const App = struct {
     xkb_state: ?*c.xkb_state = null,
     running: bool = true,
     action_failed: bool = false,
+    pending_address: ?[]const u8 = null,
     outputs: [MAX_OUTPUTS]Output = [_]Output{.{}} ** MAX_OUTPUTS,
     output_count: usize = 0,
 
@@ -78,7 +79,47 @@ pub const App = struct {
         _ = c.wl_keyboard_add_listener(self.keyboard, &keyboard_listener, self);
 
         while (self.running and c.wl_display_dispatch(self.display) >= 0) {}
+        if (self.pending_address) |address| {
+            self.releaseOverlay() catch |err| {
+                std.debug.print("easymotion-render: overlay teardown failed: {s}\n", .{@errorName(err)});
+                self.action_failed = true;
+                return;
+            };
+            Labels.runAction(self.allocator, self.config.action, address) catch |err| {
+                std.debug.print("easymotion-render: action failed: {s}\n", .{@errorName(err)});
+                self.action_failed = true;
+            };
+        }
         if (self.action_failed) return error.ActionFailed;
+    }
+
+    fn releaseOverlay(self: *App) !void {
+        if (self.keyboard) |keyboard| {
+            c.wl_keyboard_destroy(keyboard);
+            self.keyboard = null;
+        }
+
+        for (self.outputs[0..self.output_count]) |*output| {
+            self.resetOutputBuffer(output);
+            if (output.layer_surface) |layer_surface| {
+                c.zwlr_layer_surface_v1_destroy(layer_surface);
+                output.layer_surface = null;
+            }
+            if (output.surface) |surface| {
+                c.wl_surface_destroy(surface);
+                output.surface = null;
+            }
+        }
+
+        if (self.display) |display| {
+            if (c.wl_display_flush(display) < 0) return error.DisplayFlushFailed;
+            // Ensure the compositor processes our keyboard/surface teardown before
+            // the external focus action runs. Unlike the upstream in-process
+            // plugin, this renderer is a separate Wayland client that may still
+            // own exclusive keyboard focus until the destroy requests are
+            // acknowledged server-side.
+            if (c.wl_display_roundtrip(display) < 0) return error.DisplayRoundtripFailed;
+        }
     }
 
     fn resetOutputBuffer(_: *App, output: *Output) void {
@@ -149,10 +190,7 @@ pub const App = struct {
         const typed = buf[0..@as(usize, @intCast(len - 1))];
         for (self.config.labels) |label| {
             if (std.mem.eql(u8, typed, label.key)) {
-                Labels.runAction(self.allocator, self.config.action, label.address) catch |err| {
-                    std.debug.print("easymotion-render: action failed: {s}\n", .{@errorName(err)});
-                    self.action_failed = true;
-                };
+                self.pending_address = label.address;
                 self.running = false;
                 return;
             }
