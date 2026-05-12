@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend review context for runtime action syntax."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check that Lua and Zig defaults stay aligned."}
