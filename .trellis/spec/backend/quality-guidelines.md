@@ -34,7 +34,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 - Lua entrypoint: `require("easymotion").activate(overrides?) -> true | nil, err`
 - Renderer CLI: `easymotion-render <json-file>`
-- Default action template: `hyprctl dispatch focuswindow address:{}`
+- Default action template: `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:{}"}))'`
 
 #### 3. Contracts
 
@@ -62,7 +62,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 #### 5. Good/Base/Bad Cases
 
-- Good: Lua emits multiple non-fullscreen windows with full style; Zig renders labels and the default action focuses the selected address via `hyprctl dispatch focuswindow`.
+- Good: Lua emits multiple non-fullscreen windows with full style; Zig renders labels and the default action focuses the selected address via `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'`.
 - Base: Empty eligible window list emits an empty `labels` array; renderer should not crash.
 - Bad: Address contains shell metacharacters; renderer must reject it before executing `system()`.
 
@@ -146,7 +146,7 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 #### 5. Good/Base/Bad Cases
 
 - Good: output geometry, mode, and layer configure arrive; renderer allocates a correctly sized buffer, draws labels with output offsets, and commits damage.
-- Good: after a label is selected, the renderer tears down keyboard/surface state, waits for the compositor to process that teardown, then runs `hyprctl dispatch focuswindow address:<address>`.
+- Good: after a label is selected, the renderer tears down keyboard/surface state, waits for the compositor to process that teardown, then runs `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'`.
 - Base: configure reports zero width/height; renderer uses the current output mode dimensions once available.
 - Bad: renderer commits a buffer while output dimensions are still the 1x1 fallback, causing an invisible keyboard-grabbing overlay.
 - Bad: renderer runs the focus command before the compositor has processed overlay teardown, so the overlay client may still own exclusive keyboard focus.

@@ -76,7 +76,7 @@ easymotion.activate({
   motionkeys = "arstneio",
   only_special = true,
   renderer = "/home/kita/.local/bin/easymotion-render",
-  action = "hyprctl dispatch focuswindow address:{}",
+  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   textsize = 128,
   textcolor = {0.98, 0.85, 0.18, 1.0},
   bgcolor = {0.23, 0.22, 0.20, 0.80},
@@ -100,7 +100,7 @@ Current defaults live in `easymotion/config.lua`.
 - Fullscreen windows are currently skipped.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
 - Label coordinates use Hyprland global window coordinates and sizes, rendered on a full-screen layer-shell overlay surface with namespace `easymotion`.
-- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key tears down the overlay, then runs the configured action after replacing `{}` with the selected window address. The default action uses `hyprctl dispatch focuswindow address:<address>` so the selected window receives actual Hyprland focus.
+- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key tears down the overlay, then runs the configured action after replacing `{}` with the selected window address. The default action uses `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'` so newer Hyprland versions receive a Lua-dispatched window focus request.
 
 ## JSON contract
 
@@ -108,7 +108,7 @@ The Lua side writes:
 
 ```json
 {
-  "action": "hyprctl dispatch focuswindow address:{}",
+  "action": "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   "labels": [
     { "key": "a", "text": "A", "address": "0x...", "x": 640, "y": 360, "w": 1280, "h": 720 }
   ],
