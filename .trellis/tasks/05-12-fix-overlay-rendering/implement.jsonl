@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/error-handling.md","reason":"Renderer failure and exit behavior are central to diagnosing and fixing the blank overlay path."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"The bug spans Lua-to-Zig contract behavior and Wayland renderer correctness."}
