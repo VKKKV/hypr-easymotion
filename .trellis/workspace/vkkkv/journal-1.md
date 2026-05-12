@@ -72,3 +72,37 @@ Hardened the easymotion runtime contract, added GPLv3 licensing and public relea
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Review focus syntax fix
+
+**Date**: 2026-05-12
+**Task**: Review focus syntax fix
+**Branch**: `main`
+
+### Summary
+
+Reviewed the new Hyprland window-focus syntax, aligned the Lua and Zig default action templates, synced project-facing docs and spec text, and committed the verified fix.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `18332e1` | (see git log) |
+| `1f50019` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
