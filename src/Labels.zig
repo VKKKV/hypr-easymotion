@@ -75,7 +75,7 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
         else => return error.InvalidJsonRoot,
     };
 
-    const action_src = stringFromValue(root.get("action"), "hyprctl dispatch focuswindow address:{}");
+    const action_src = stringFromValue(root.get("action"), "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'");
     const action = try allocator.dupeZ(u8, action_src);
 
     var style = Style{};
