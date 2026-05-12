@@ -28,7 +28,7 @@ SUPER+R 按下
   ▼
 easymotion/init.lua (Hyprland 内)
   │
-  ├─ io.popen("hyprctl clients -j") → 解析窗口列表
+  ├─ hl.get_windows() → 解析窗口列表
   ├─ 过滤可见窗口，按 motionkeys 分配 label
   ├─ 写入 /tmp/easymotion-{PID}.json
   ├─ hl.exec_cmd("easymotion-render /tmp/easymotion-{PID}.json")
@@ -74,7 +74,7 @@ Lua 写入临时 JSON 文件，路径作为 CLI 参数传给 Zig：
 
 ```jsonc
 {
-  "action": "hyprctl dispatch focuswindow address:{}",
+  "action": "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   "labels": [
     {
       "key": "a",           // 按这个键选中
@@ -108,7 +108,7 @@ Lua 写入临时 JSON 文件，路径作为 CLI 参数传给 Zig：
 -- ~/.config/hypr/easymotion/config.lua
 return {
   motionkeys = "arstneio",
-  action = "hyprctl dispatch focuswindow address:{}",
+  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   only_special = true,
 
   textsize   = 128,
@@ -195,7 +195,7 @@ Hyprland 的 `layer_rule` 可以匹配 `namespace = "easymotion"`，控制 blur/
 ## Hyprland 集成注意点
 
 - **`HYPRLAND_INSTANCE_SIGNATURE`**: 多实例场景下标识 Hyprland socket。JSON 文件名建议包含此签名，确保多 session 不冲突。
-- **`hyprctl clients -j`** 输出格式: `[{address, mapped, hidden, at: [x,y], size: [w,h], class, title, workspace: {id, name}, ...}]`。Lua 侧只需 `address`, `mapped`, `hidden`, `at`, `size`, `workspace`。
+- **`hl.get_windows()`**: 当前实现直接使用 Hyprland Lua API 读取窗口 userdata，再转换成 `{address, mapped, hidden, fullscreen, at, size, workspace}` 结构供 label 过滤使用。
 - **fullscreen 窗口处理**: `hyprctl clients -j` 的输出包含 `fullscreen` 字段 (0/1/2)。原插件支持 `fullscreen_action = toggle/maximize/none`。V1 可先不支持（fullscreen 窗口不挂 label 或加 `fullscreen_action = "none"` 跳过）。
 - **special workspace**: `hyprctl clients -j` 包含 `workspace.id`。通过 `hyprctl activeworkspace -j` 判断当前是否有 special workspace active。如果 `only_special = true` 且当前显示 special workspace，只给 special workspace 的窗口挂 label。
 - **Zig 进程生命周期**: `hl.exec_cmd()` 是 fire-and-forget，不需要 `&`。Zig 进程退出后 layer surface 自动销毁，键盘控制自动归还。不需要进程间通信协议。
@@ -232,4 +232,4 @@ Hyprland 的 `layer_rule` 可以匹配 `namespace = "easymotion"`，控制 blur/
 
 ## License
 
-待定（建议 GPLv3 与原插件一致）。
+GPLv3-or-later.

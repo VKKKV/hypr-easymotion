@@ -2,6 +2,22 @@
 
 Hyprland window easymotion implemented with Lua config modules plus a standalone Zig Wayland layer-shell renderer.
 
+This project is inspired by and references [`zakk4223/hyprland-easymotion`](https://github.com/zakk4223/hyprland-easymotion), but reimplements the flow around Hyprland Lua config plus an external Zig renderer instead of a C++ Hyprland plugin.
+
+## What it does
+
+- gathers candidate windows from the Hyprland Lua API
+- filters them to the current workspace and optional special-workspace scope
+- writes a temporary JSON payload to `/tmp`
+- launches a full-screen Wayland layer-shell overlay renderer
+- grabs keyboard input exclusively until you press a motion key or `Escape`
+
+## Demo
+
+A demo recording is included in the repository as [`show.mkv`](./show.mkv).
+
+Use it to quickly verify the intended interaction model before installing: trigger easymotion, see labels appear over eligible windows, then press the matching key to focus the target window.
+
 ## Dependencies
 
 Arch Linux packages:
@@ -39,7 +55,7 @@ Then load it from Hyprland Lua config:
 ```lua
 local easymotion = require("easymotion")
 
--- Call activate() from the binding.  Do not bind SUPER+R directly to
+-- Call activate() from the binding. Do not bind SUPER+R directly to
 -- `easymotion-render /tmp/...`: activate() writes the fresh JSON config first.
 hl.bind("SUPER + R", function()
   local ok, err = easymotion.activate()
@@ -49,14 +65,18 @@ hl.bind("SUPER + R", function()
 end)
 ```
 
+This module expects Hyprland's Lua API globals (for example `hl.get_windows()`, `hl.get_active_workspace()`, and `hl.exec_cmd()`) to be available in that config environment.
+
+## Configuration
+
 Configuration can be overridden per call:
 
 ```lua
 easymotion.activate({
   motionkeys = "arstneio",
   only_special = true,
-  renderer = "easymotion-render",
-  action = "hyprctl dispatch focuswindow address:{}",
+  renderer = "/home/kita/.local/bin/easymotion-render",
+  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   textsize = 128,
   textcolor = {0.98, 0.85, 0.18, 1.0},
   bgcolor = {0.23, 0.22, 0.20, 0.80},
@@ -68,14 +88,19 @@ easymotion.activate({
 })
 ```
 
+Current defaults live in `easymotion/config.lua`.
+
+`spawn_background` remains available for shell-based fallback launchers (`cfg.exec` / `os.execute`). It is intentionally ignored when the native Hyprland helper `hl.exec_cmd()` is used, because that path is already fire-and-forget.
+
 ## Runtime behavior
 
-- Lua calls `hyprctl clients -j`, filters eligible windows, truncates to `motionkeys`, writes `/tmp/easymotion-*.json`, then starts `easymotion-render`.
+- Lua calls `hl.get_windows()` from the Hyprland Lua API, converts window userdata into plain Lua tables, filters eligible windows, truncates to `motionkeys`, writes `/tmp/easymotion-*.json`, then starts `easymotion-render`.
+- `activate()` also reads the active workspace through `hl.get_active_workspace()` so special-workspace filtering stays aligned with the live Hyprland state.
 - `easymotion-render` expects the JSON path created by `activate()`. A stale or hand-written binding such as `easymotion-render /tmp/does-not-exist` will fail before any overlay can render.
-- Fullscreen windows are skipped for the MVP.
+- Fullscreen windows are currently skipped.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
-- Label coordinates use Hyprland global window coordinates from `hyprctl`, rendered on one full-screen layer-shell overlay surface with namespace `easymotion`.
-- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key runs the configured action after replacing `{}` with the window address.
+- Label coordinates use Hyprland global window coordinates and sizes, rendered on a full-screen layer-shell overlay surface with namespace `easymotion`.
+- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key runs the configured action after replacing `{}` with the selected window address.
 
 ## JSON contract
 
@@ -83,7 +108,7 @@ The Lua side writes:
 
 ```json
 {
-  "action": "hyprctl dispatch focuswindow address:{}",
+  "action": "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   "labels": [
     { "key": "a", "text": "A", "address": "0x...", "x": 640, "y": 360, "w": 1280, "h": 720 }
   ],
@@ -99,3 +124,14 @@ The Lua side writes:
   }
 }
 ```
+
+## Notes and limitations
+
+- This repository intentionally keeps its `.trellis/` workflow and task/spec history in-tree.
+- The current default renderer path in `easymotion/config.lua` points at `/home/kita/.local/bin/easymotion-render`; override `renderer` if your install path differs.
+- The Lua entrypoint requires the Hyprland Lua config runtime; calling `require("easymotion").activate()` in a plain standalone Lua interpreter will fail because the global `hl` API is not present there.
+- Because the renderer grabs keyboard input exclusively, live validation is best done manually inside a real Hyprland session.
+
+## License
+
+This repository is licensed under the GNU General Public License v3.0 or later. See [`LICENSE`](./LICENSE).
