@@ -2,7 +2,7 @@ local M = {}
 
 M.defaults = {
   motionkeys = "arstneio",
-  action = "hyprctl dispatch focuswindow address:{}",
+  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   only_special = true,
   renderer = "/home/kita/.local/bin/easymotion-render",
   spawn_background = true,
