@@ -74,7 +74,7 @@ Lua 写入临时 JSON 文件，路径作为 CLI 参数传给 Zig：
 
 ```jsonc
 {
-  "action": "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
+  "action": "hyprctl dispatch focuswindow address:{}",
   "labels": [
     {
       "key": "a",           // 按这个键选中
@@ -108,7 +108,7 @@ Lua 写入临时 JSON 文件，路径作为 CLI 参数传给 Zig：
 -- ~/.config/hypr/easymotion/config.lua
 return {
   motionkeys = "arstneio",
-  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
+  action = "hyprctl dispatch focuswindow address:{}",
   only_special = true,
 
   textsize   = 128,

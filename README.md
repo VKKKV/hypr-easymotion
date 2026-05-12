@@ -14,7 +14,7 @@ This project is inspired by and references [`zakk4223/hyprland-easymotion`](http
 
 ## Demo
 
-A demo recording is included in the repository as [`show.mkv`](./show.mkv).
+https://github.com/user-attachments/assets/5558df25-0f7e-4cd3-9393-b550afc97801
 
 Use it to quickly verify the intended interaction model before installing: trigger easymotion, see labels appear over eligible windows, then press the matching key to focus the target window.
 
@@ -76,7 +76,7 @@ easymotion.activate({
   motionkeys = "arstneio",
   only_special = true,
   renderer = "/home/kita/.local/bin/easymotion-render",
-  action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
+  action = "hyprctl dispatch focuswindow address:{}",
   textsize = 128,
   textcolor = {0.98, 0.85, 0.18, 1.0},
   bgcolor = {0.23, 0.22, 0.20, 0.80},
@@ -100,7 +100,7 @@ Current defaults live in `easymotion/config.lua`.
 - Fullscreen windows are currently skipped.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
 - Label coordinates use Hyprland global window coordinates and sizes, rendered on a full-screen layer-shell overlay surface with namespace `easymotion`.
-- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key runs the configured action after replacing `{}` with the selected window address.
+- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key tears down the overlay, then runs the configured action after replacing `{}` with the selected window address. The default action uses `hyprctl dispatch focuswindow address:<address>` so the selected window receives actual Hyprland focus.
 
 ## JSON contract
 
@@ -108,7 +108,7 @@ The Lua side writes:
 
 ```json
 {
-  "action": "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
+  "action": "hyprctl dispatch focuswindow address:{}",
   "labels": [
     { "key": "a", "text": "A", "address": "0x...", "x": 640, "y": 360, "w": 1280, "h": 720 }
   ],
