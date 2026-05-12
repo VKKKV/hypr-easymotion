@@ -106,3 +106,39 @@ Reviewed the new Hyprland window-focus syntax, aligned the Lua and Zig default a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Archive remaining easymotion tasks
+
+**Date**: 2026-05-12
+**Task**: Archive remaining easymotion tasks
+**Branch**: `main`
+
+### Summary
+
+Archived the remaining easymotion investigation and documentation tasks after the runtime focus issue was resolved and the newer Hyprland focus syntax was verified.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `94d67f0` | (see git log) |
+| `12737e3` | (see git log) |
+| `18332e1` | (see git log) |
+| `1f50019` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
