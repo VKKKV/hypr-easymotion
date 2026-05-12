@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check the renderer still fails closed and reports meaningful errors after the fix."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify the Lua/Zig contract, formatting, and renderer behavior remain aligned."}
