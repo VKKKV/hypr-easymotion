@@ -39,7 +39,8 @@ Then load it from Hyprland Lua config:
 ```lua
 local easymotion = require("easymotion")
 
--- Example binding shape; adapt to your Hyprland Lua config helpers.
+-- Call activate() from the binding.  Do not bind SUPER+R directly to
+-- `easymotion-render /tmp/...`: activate() writes the fresh JSON config first.
 hl.bind("SUPER + R", function()
   local ok, err = easymotion.activate()
   if not ok then
@@ -54,6 +55,7 @@ Configuration can be overridden per call:
 easymotion.activate({
   motionkeys = "arstneio",
   only_special = true,
+  renderer = "easymotion-render",
   action = "hyprctl dispatch focuswindow address:{}",
   textsize = 128,
   textcolor = {0.98, 0.85, 0.18, 1.0},
@@ -69,6 +71,7 @@ easymotion.activate({
 ## Runtime behavior
 
 - Lua calls `hyprctl clients -j`, filters eligible windows, truncates to `motionkeys`, writes `/tmp/easymotion-*.json`, then starts `easymotion-render`.
+- `easymotion-render` expects the JSON path created by `activate()`. A stale or hand-written binding such as `easymotion-render /tmp/does-not-exist` will fail before any overlay can render.
 - Fullscreen windows are skipped for the MVP.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
 - Label coordinates use Hyprland global window coordinates from `hyprctl`, rendered on one full-screen layer-shell overlay surface with namespace `easymotion`.

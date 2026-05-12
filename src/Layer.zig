@@ -28,6 +28,10 @@ const Output = struct {
     y: i32 = 0,
     width: i32 = 1,
     height: i32 = 1,
+    rendered_x: i32 = 0,
+    rendered_y: i32 = 0,
+    rendered_width: i32 = 0,
+    rendered_height: i32 = 0,
     rendered: bool = false,
 };
 
@@ -54,6 +58,7 @@ pub const App = struct {
         self.registry = c.wl_display_get_registry(self.display) orelse return error.RegistryFailed;
         _ = c.wl_registry_add_listener(self.registry, &registry_listener, self);
         if (c.wl_display_roundtrip(self.display) < 0) return error.RegistryRoundtripFailed;
+        if (c.wl_display_roundtrip(self.display) < 0) return error.OutputRoundtripFailed;
         if (self.compositor == null) return error.MissingWlCompositor;
         if (self.shm == null) return error.MissingWlShm;
         if (self.layer_shell == null) return error.MissingLayerShell;
@@ -76,18 +81,37 @@ pub const App = struct {
         if (self.action_failed) return error.ActionFailed;
     }
 
-    fn renderOutput(self: *App, output: *Output) !void {
-        if (output.rendered) return;
+    fn resetOutputBuffer(_: *App, output: *Output) void {
+        if (output.shm_data) |data| _ = c.munmap(data, output.shm_size);
+        if (output.shm_fd >= 0) _ = c.close(output.shm_fd);
+        if (output.buffer) |p| c.wl_buffer_destroy(p);
+        if (output.shm_pool) |p| c.wl_shm_pool_destroy(p);
+        output.buffer = null;
+        output.shm_pool = null;
+        output.shm_fd = -1;
+        output.shm_data = null;
+        output.shm_size = 0;
+    }
+
+    fn tryRenderOutput(self: *App, output: *Output) !void {
+        if (output.surface == null or output.layer_surface == null) return;
+        if (output.width <= 1 or output.height <= 1) return;
+        if (output.rendered and output.rendered_x == output.x and output.rendered_y == output.y and output.rendered_width == output.width and output.rendered_height == output.height) return;
+
         const stride: i32 = output.width * 4;
         const size: i32 = stride * output.height;
-        output.shm_fd = c.em_create_shm_file(size);
-        if (output.shm_fd < 0) return error.ShmFileFailed;
-        output.shm_size = @intCast(size);
-        const mapped = c.mmap(null, output.shm_size, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, output.shm_fd, 0);
-        if (mapped == c.MAP_FAILED) return error.MmapFailed;
-        output.shm_data = @ptrCast(mapped);
-        output.shm_pool = c.em_shm_create_pool(self.shm, output.shm_fd, size) orelse return error.ShmPoolFailed;
-        output.buffer = c.em_shm_pool_create_argb8888_buffer(output.shm_pool, output.width, output.height, stride) orelse return error.BufferFailed;
+        if (output.buffer == null or output.rendered_width != output.width or output.rendered_height != output.height) {
+            self.resetOutputBuffer(output);
+            output.shm_fd = c.em_create_shm_file(size);
+            if (output.shm_fd < 0) return error.ShmFileFailed;
+            output.shm_size = @intCast(size);
+            const mapped = c.mmap(null, output.shm_size, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, output.shm_fd, 0);
+            if (mapped == c.MAP_FAILED) return error.MmapFailed;
+            output.shm_data = @ptrCast(mapped);
+            output.shm_pool = c.em_shm_create_pool(self.shm, output.shm_fd, size) orelse return error.ShmPoolFailed;
+            output.buffer = c.em_shm_pool_create_argb8888_buffer(output.shm_pool, output.width, output.height, stride) orelse return error.BufferFailed;
+        }
+
         var c_style = c.em_style{
             .textsize = self.config.style.textsize,
             .textcolor = self.config.style.textcolor,
@@ -105,6 +129,10 @@ pub const App = struct {
         }
         if (c.em_render_labels(output.shm_data.?, output.width, output.height, stride, &c_style, c_labels.ptr, @intCast(c_labels.len)) != 0) return error.RenderFailed;
         c.em_surface_attach_damage_commit(output.surface, output.buffer, output.width, output.height);
+        output.rendered_x = output.x;
+        output.rendered_y = output.y;
+        output.rendered_width = output.width;
+        output.rendered_height = output.height;
         output.rendered = true;
     }
 
@@ -170,6 +198,12 @@ fn outputGeometry(data: ?*anyopaque, _: ?*c.wl_output, x: i32, y: i32, _: i32, _
     const output: *Output = @ptrCast(@alignCast(data.?));
     output.x = x;
     output.y = y;
+    if (output.app) |app| {
+        app.tryRenderOutput(output) catch |err| {
+            std.debug.print("easymotion-render: render failed: {s}\n", .{@errorName(err)});
+            app.running = false;
+        };
+    }
 }
 
 fn outputMode(data: ?*anyopaque, _: ?*c.wl_output, flags: u32, width: i32, height: i32, _: i32) callconv(.c) void {
@@ -177,6 +211,12 @@ fn outputMode(data: ?*anyopaque, _: ?*c.wl_output, flags: u32, width: i32, heigh
     const output: *Output = @ptrCast(@alignCast(data.?));
     output.width = width;
     output.height = height;
+    if (output.app) |app| {
+        app.tryRenderOutput(output) catch |err| {
+            std.debug.print("easymotion-render: render failed: {s}\n", .{@errorName(err)});
+            app.running = false;
+        };
+    }
 }
 
 fn outputDone(_: ?*anyopaque, _: ?*c.wl_output) callconv(.c) void {}
@@ -199,7 +239,7 @@ fn layerConfigure(data: ?*anyopaque, surface: ?*c.struct_zwlr_layer_surface_v1, 
     output.height = if (height == 0) output.height else @intCast(height);
     c.em_layer_surface_ack_configure(surface, serial);
     const app = output.app.?;
-    app.renderOutput(output) catch |err| {
+    app.tryRenderOutput(output) catch |err| {
         std.debug.print("easymotion-render: render failed: {s}\n", .{@errorName(err)});
         app.running = false;
     };

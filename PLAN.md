@@ -126,12 +126,15 @@ return {
 
 ```lua
 local easymotion = require("easymotion")
-hl.bind("SUPER + R", hl.dsp.exec_cmd(
-  "easymotion-render /tmp/easymotion-" .. os.getenv("HYPRLAND_INSTANCE_SIGNATURE") .. ".json &"
-))
+hl.bind("SUPER + R", function()
+  local ok, err = easymotion.activate()
+  if not ok then
+    print("easymotion: " .. tostring(err))
+  end
+end)
 ```
 
-或者更好：Lua 层在 `activate()` 里先写 JSON 再 spawn，这样 JSON 写入和进程启动是原子的。
+Lua 层必须在 `activate()` 里先写 JSON 再 spawn，这样 JSON 写入和进程启动是原子的。不要把按键直接绑定到 `easymotion-render /tmp/...`，否则 renderer 可能读取不存在或过期的配置文件。
 
 ## Zig 层关键技术点
 
