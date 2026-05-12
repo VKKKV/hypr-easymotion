@@ -18,6 +18,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 - Do not leave generated build outputs unignored or committed unless they are intentional source artifacts. Zig build outputs belong in `.zig-cache/`, `zig-cache/`, or `zig-out/` and must be ignored.
 - Do not silently diverge Lua defaults from Zig defaults. Defaults are part of the cross-layer contract and must match.
 - Do not assume a single monitor-sized output when rendering window coordinates. Hyprland window coordinates are global compositor coordinates; renderer code must account for output offsets or document a deliberate limitation.
+- Do not render a layer-shell overlay before Wayland output geometry/mode and layer-surface configure have produced real dimensions. A keyboard-grabbing overlay with a 1x1 or stale buffer appears as a frozen blank screen.
 
 ---
 
@@ -111,3 +112,63 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 - Are generated artifacts ignored or intentionally committed?
 - Do multi-monitor coordinates account for global positions and output offsets?
 - Are fullscreen and `only_special` behaviors preserved across Lua filtering changes?
+
+### Scenario: Wayland Layer-Shell Overlay Rendering
+
+#### 1. Scope / Trigger
+
+- Trigger: Changes to `src/Layer.zig`, Wayland output handling, layer-surface configure handling, or shared-memory buffer lifecycle.
+
+#### 2. Signatures
+
+- Renderer app entrypoint: `Layer.App.run() !void`
+- Output render path: `tryRenderOutput(app, output) !void`
+- Wayland callbacks: `outputGeometry`, `outputMode`, and `layerConfigure`
+
+#### 3. Contracts
+
+- The renderer must wait for registry globals and output events before treating output size and position as authoritative.
+- Labels must render only after the output has real dimensions greater than the 1x1 initialization fallback.
+- A layer-surface configure may provide zero width/height; zero means keep the known output dimensions, not render at zero size.
+- Rendered label positions are Hyprland global coordinates offset by the target output's `x` and `y`.
+- If output geometry or size changes after initial render, the renderer must re-render with fresh offsets and buffer dimensions.
+- The renderer may grab keyboard input, but it must not leave a blank full-screen layer when labels exist and Wayland has supplied usable dimensions.
+
+#### 4. Validation & Error Matrix
+
+- Missing output globals -> `MissingOutput` -> non-zero renderer exit.
+- Output dimensions still fallback-sized (`<= 1`) -> defer rendering, continue dispatching Wayland events.
+- Shared-memory file, mmap, pool, or buffer creation failure -> render error -> non-zero renderer exit.
+- Layer surface closed by compositor -> stop the event loop without running an action.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: output geometry, mode, and layer configure arrive; renderer allocates a correctly sized buffer, draws labels with output offsets, and commits damage.
+- Base: configure reports zero width/height; renderer uses the current output mode dimensions once available.
+- Bad: renderer commits a buffer while output dimensions are still the 1x1 fallback, causing an invisible keyboard-grabbing overlay.
+
+#### 6. Tests Required
+
+- `zig build` must pass after any renderer lifecycle change.
+- `zig fmt --check build.zig src/main.zig src/Layer.zig src/Labels.zig` must pass for Zig source changes.
+- Non-interactive failure-path checks should cover missing Wayland display or invalid inputs where feasible.
+- Live Hyprland overlay visibility still requires manual testing because the renderer intentionally grabs exclusive keyboard input.
+
+#### 7. Wrong vs Correct
+
+##### Wrong
+
+```zig
+fn layerConfigure(output: *Output) void {
+    renderOutput(output); // may still use 1x1 fallback output dimensions
+}
+```
+
+##### Correct
+
+```zig
+fn layerConfigure(output: *Output) void {
+    if (output.width <= 1 or output.height <= 1) return;
+    tryRenderOutput(output); // renders only after real output dimensions are known
+}
+```
