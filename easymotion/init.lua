@@ -79,16 +79,23 @@ function M.activate(user_config)
     return nil, write_err
   end
 
-  local cmd = cfg.renderer .. " " .. shell_quote(path)
-  if cfg.spawn_background then
-    cmd = cmd .. " &"
-  end
-
   if type(cfg.exec) == "function" then
+    local cmd = cfg.renderer .. " " .. shell_quote(path)
+    if cfg.spawn_background then
+      cmd = cmd .. " &"
+    end
     cfg.exec(cmd)
   elseif _G.hl and type(_G.hl.exec_cmd) == "function" then
+    -- Hyprland's Lua exec helper is already fire-and-forget.  Do not append a
+    -- shell background marker here; some wrappers do not evaluate a shell and
+    -- would pass the extra token through to the renderer instead.
+    local cmd = cfg.renderer .. " " .. shell_quote(path)
     _G.hl.exec_cmd(cmd)
   else
+    local cmd = cfg.renderer .. " " .. shell_quote(path)
+    if cfg.spawn_background then
+      cmd = cmd .. " &"
+    end
     os.execute(cmd)
   end
 
