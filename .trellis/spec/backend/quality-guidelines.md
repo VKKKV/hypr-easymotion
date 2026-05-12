@@ -34,7 +34,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 - Lua entrypoint: `require("easymotion").activate(overrides?) -> true | nil, err`
 - Renderer CLI: `easymotion-render <json-file>`
-- Default action template: `hyprctl dispatch focuswindow address:{}`
+- Default action template: `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:{}"}))'`
 
 #### 3. Contracts
 

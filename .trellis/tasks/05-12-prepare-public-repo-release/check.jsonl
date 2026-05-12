@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Check doc and configuration-facing changes against frontend guidance."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Check release-prep and documentation consistency against backend guidance."}
