@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-05-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~179 | Active |
+| `journal-1.md` | ~214 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-13 | Fix shim fallback and default renderer | `532daba`, `765f284`, `ac4b54a` | `main` |
 | 5 | 2026-05-13 | Refine launch reliability and label allocation | `dd8212a`, `9b12e32`, `5201e3e` | `main` |
 | 4 | 2026-05-12 | Archive remaining easymotion tasks | `94d67f0`, `12737e3`, `18332e1`, `1f50019` | `main` |
 | 3 | 2026-05-12 | Review focus syntax fix | `18332e1`, `1f50019` | `main` |

@@ -177,3 +177,38 @@ Relaxed renderer preflight for PATH-resolved command names, reordered label vali
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Fix shim fallback and default renderer
+
+**Date**: 2026-05-13
+**Task**: Fix shim fallback and default renderer
+**Branch**: `main`
+
+### Summary
+
+Fixed C shim shared-memory fallback naming and allocation-failure cleanup, changed the default renderer to PATH resolution, and documented the contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `532daba` | (see git log) |
+| `765f284` | (see git log) |
+| `ac4b54a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
