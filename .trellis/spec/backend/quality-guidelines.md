@@ -19,6 +19,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 - Do not silently diverge Lua defaults from Zig defaults. Defaults are part of the cross-layer contract and must match.
 - Do not assume a single monitor-sized output when rendering window coordinates. Hyprland window coordinates are global compositor coordinates; renderer code must account for output offsets or document a deliberate limitation.
 - Do not render a layer-shell overlay before Wayland output geometry/mode and layer-surface configure have produced real dimensions. A keyboard-grabbing overlay with a 1x1 or stale buffer appears as a frozen blank screen.
+- Do not use a fixed `shm_open` fallback name. Concurrent renderer instances must not collide on shared-memory object creation.
 
 ---
 
@@ -142,7 +143,8 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 
 - Missing output globals -> `MissingOutput` -> non-zero renderer exit.
 - Output dimensions still fallback-sized (`<= 1`) -> defer rendering, continue dispatching Wayland events.
-- Shared-memory file, mmap, pool, or buffer creation failure -> render error -> non-zero renderer exit.
+- Shared-memory file, mmap, pool, or buffer creation failure -> clean any acquired file descriptors/resources, then return a render error and exit non-zero.
+- C shim label-render allocation failure -> release any acquired Pango layout/font plus Cairo context/surface before returning `-1`.
 - Layer surface closed by compositor -> stop the event loop without running an action.
 - Overlay teardown flush/roundtrip failure before action -> renderer exits non-zero instead of running the external focus command while it may still hold keyboard focus.
 
@@ -151,13 +153,16 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 - Good: output geometry, mode, and layer configure arrive; renderer allocates a correctly sized buffer, draws labels with output offsets, and commits damage.
 - Good: after a label is selected, the renderer tears down keyboard/surface state, waits for the compositor to process that teardown, then runs `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'`.
 - Base: configure reports zero width/height; renderer uses the current output mode dimensions once available.
+- Base: `memfd_create` is unavailable; the `shm_open` fallback uses generated names with retry and unlinks the object immediately after a successful open.
 - Bad: renderer commits a buffer while output dimensions are still the 1x1 fallback, causing an invisible keyboard-grabbing overlay.
 - Bad: renderer runs the focus command before the compositor has processed overlay teardown, so the overlay client may still own exclusive keyboard focus.
+- Bad: fallback shared-memory creation uses a literal name such as `/hypr-easymotion-XXXXXX`, so parallel renderer starts can fail with `EEXIST`.
 
 #### 6. Tests Required
 
 - `zig build` must pass after any renderer lifecycle change.
 - `zig fmt --check build.zig src/main.zig src/Layer.zig src/Labels.zig` must pass for Zig source changes.
+- C shim changes are covered by `zig build` because `build.zig` compiles `src/c/shim.c` into the renderer.
 - Non-interactive failure-path checks should cover missing Wayland display or invalid inputs where feasible.
 - Live Hyprland overlay visibility still requires manual testing because the renderer intentionally grabs exclusive keyboard input.
 
