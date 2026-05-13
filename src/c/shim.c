@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 #include <cairo/cairo.h>
 #include <pango/pangocairo.h>
@@ -78,9 +79,18 @@ void em_surface_attach_damage_commit(struct wl_surface *surface, struct wl_buffe
 int em_create_shm_file(int32_t size) {
     int fd = memfd_create("hypr-easymotion", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) {
-        char name[] = "/hypr-easymotion-XXXXXX";
-        fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
-        if (fd >= 0) shm_unlink(name);
+        struct timespec ts = { 0, 0 };
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        for (unsigned int attempt = 0; attempt < 100; attempt++) {
+            char name[64];
+            snprintf(name, sizeof(name), "/hypr-easymotion-%ld-%ld-%u", (long)getpid(), (long)ts.tv_nsec, attempt);
+            fd = shm_open(name, O_RDWR | O_CREAT | O_EXCL, 0600);
+            if (fd >= 0) {
+                shm_unlink(name);
+                break;
+            }
+            if (errno != EEXIST) break;
+        }
     }
     if (fd < 0) return -1;
     if (ftruncate(fd, size) < 0) {
@@ -126,7 +136,13 @@ int em_render_labels(unsigned char *data, int32_t width, int32_t height, int32_t
     for (uint32_t i = 0; i < label_count; i++) {
         PangoLayout *layout = pango_cairo_create_layout(cr);
         PangoFontDescription *font = pango_font_description_new();
-        if (!layout || !font) return -1;
+        if (!layout || !font) {
+            if (font) pango_font_description_free(font);
+            if (layout) g_object_unref(layout);
+            cairo_destroy(cr);
+            cairo_surface_destroy(surface);
+            return -1;
+        }
         pango_font_description_set_family(font, style->textfont);
         pango_font_description_set_absolute_size(font, style->textsize * PANGO_SCALE);
         pango_layout_set_font_description(layout, font);
