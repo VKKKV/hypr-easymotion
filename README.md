@@ -90,18 +90,19 @@ easymotion.activate({
 
 Current defaults live in `easymotion/config.lua`.
 
-`spawn_background` remains available for shell-based fallback launchers (`cfg.exec` / `os.execute`). It is intentionally ignored when the native Hyprland helper `hl.exec_cmd()` is used, because that path is already fire-and-forget and expects a Hyprland command string in the form `exec <renderer> <json-path>`.
+`spawn_background` remains available for shell-based fallback launchers (`cfg.exec` / `os.execute`). It is intentionally ignored when the native Hyprland helper `hl.exec_cmd()` is used, because that path is already fire-and-forget.
 
 ## Runtime behavior
 
-- Lua calls `hl.get_windows()` from the Hyprland Lua API, converts window userdata into plain Lua tables, filters eligible windows, truncates to `motionkeys`, writes `/tmp/easymotion-*.json`, then starts `easymotion-render`.
-- `activate()` also reads the active workspace through `hl.get_active_workspace()` so special-workspace filtering stays aligned with the live Hyprland state.
-- When `hl.exec_cmd()` is available, `activate()` submits `exec <renderer> <json-path>` to Hyprland and treats success as command acceptance by Hyprland. It cannot synchronously prove that the asynchronously spawned renderer process later initialized successfully.
-- `easymotion-render` expects the JSON path created by `activate()`. A stale or hand-written binding such as `easymotion-render /tmp/does-not-exist` will fail before any overlay can render.
-- Fullscreen windows are currently skipped.
+- Lua calls `hl.get_windows()` from the Hyprland Lua API, converts window userdata into plain Lua tables, filters eligible windows, assigns motion keys in a deterministic order (workspace → y → x → address), writes a high-entropy `/tmp/easymotion-<sig>-<random>.json` temp file, then spawns `easymotion-render`.
+- `activate()` returns `true` on success, or `nil, reason` on any failure (no HL API, no windows, renderer binary missing, temp file write error). This makes it easy to log errors from the keybind.
+- The spawn path auto-selects backend: `hl.exec_cmd()` (native, unquoted path), `os.execute` (shell, quoted path + background), or a custom `cfg.exec` function. The renderer binary is checked for existence before spawning; if missing, the temp file is cleaned up and an error returned.
+- `easymotion-render` expects the JSON path created by `activate()`. It deletes the file after reading. If the renderer never starts, the temp file remains in `/tmp` (cleared on reboot).
+- Fullscreen windows are skipped.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
 - Label coordinates use Hyprland global window coordinates and sizes, rendered on a full-screen layer-shell overlay surface with namespace `easymotion`.
-- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key tears down the overlay, then runs the configured action after replacing `{}` with the selected window address. The default action uses `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'` so newer Hyprland versions receive a Lua-dispatched window focus request.
+- The renderer requests exclusive keyboard interactivity. `Escape` exits. Pressing a matching motion key tears down the overlay, then runs the configured action after replacing `{}` with the selected window address.
+- The renderer warns on stderr when MAX_OUTPUTS (16) is exceeded, when labels have missing required fields, or when rendering fails.
 
 ## JSON contract
 

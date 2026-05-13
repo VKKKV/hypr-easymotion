@@ -29,10 +29,13 @@ SUPER+R 按下
 easymotion/init.lua (Hyprland 内)
   │
   ├─ hl.get_windows() → 解析窗口列表
-  ├─ 过滤可见窗口，按 motionkeys 分配 label
-  ├─ 写入 /tmp/easymotion-{PID}.json
-  ├─ hl.exec_cmd("easymotion-render /tmp/easymotion-{PID}.json")
-  └─ return (Zig 进程接管全部控制)
+  ├─ 过滤可见窗口，按 workspace → y → x → address 确定性排序后分配 label
+  ├─ 写入 /tmp/easymotion-<sig>-<random>.json (高熵随机名)
+  ├─ spawn_renderer(): 根据后端自动选择路径引用方式
+  │   ├─ hl.exec_cmd: 不引用 (直接传参, 无 shell)
+  │   ├─ os.execute: 单引号引用 (经过 /bin/sh)
+  │   └─ cfg.exec: 保持原有行为
+  └─ 返回 true (成功) 或 nil, reason (失败)
        │
        ▼
 easymotion-render (Zig binary, Wayland layer-shell client)
@@ -55,7 +58,7 @@ easymotion-render (Zig binary, Wayland layer-shell client)
 ├── init.lua               ← 入口: return table, 含 activate() 函数
 ├── config.lua              ← 主题 / motionkeys / action 配置
 ├── labels.lua              ← hyprctl → 窗口过滤 → label 分配
-├── json.lua                ← 轻量 JSON encoder (只需 encode, ~30行)
+├── json.lua                ← JSON encoder + decoder (完整实现, 支持 UTF-8)
 ├── build.zig               ← zig build
 └── src/
     ├── main.zig            ← entry: arg parse, Wayland connect, event loop
@@ -199,7 +202,7 @@ Hyprland 的 `layer_rule` 可以匹配 `namespace = "easymotion"`，控制 blur/
 - **fullscreen 窗口处理**: `hyprctl clients -j` 的输出包含 `fullscreen` 字段 (0/1/2)。原插件支持 `fullscreen_action = toggle/maximize/none`。V1 可先不支持（fullscreen 窗口不挂 label 或加 `fullscreen_action = "none"` 跳过）。
 - **special workspace**: `hyprctl clients -j` 包含 `workspace.id`。通过 `hyprctl activeworkspace -j` 判断当前是否有 special workspace active。如果 `only_special = true` 且当前显示 special workspace，只给 special workspace 的窗口挂 label。
 - **Zig 进程生命周期**: `hl.exec_cmd()` 是 fire-and-forget，不需要 `&`。Zig 进程退出后 layer surface 自动销毁，键盘控制自动归还。不需要进程间通信协议。
-- **临时文件清理**: Lua 在 `activate()` 写入 JSON，Zig 启动后先 rename/delete JSON 再读取（或直接读取后 unlink），Lua 侧无需清理。
+- **临时文件清理**: Lua 在 `activate()` 写入 JSON，Zig 启动后读取并立即删除。若渲染器启动失败（二进制不存在），Lua 侧删除临时文件；若渲染器 crash，文件残留于 /tmp（重启后清理）。
 
 ## 开发增量计划
 
