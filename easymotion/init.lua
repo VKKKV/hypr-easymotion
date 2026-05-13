@@ -53,13 +53,14 @@ local function write_payload(path, cfg, rendered_labels)
   return true
 end
 
--- Spawn the renderer process, handling backend-specific path quoting.
--- hl.exec_cmd: NO quoting (it passes args directly, not through a shell).
--- os.execute: quoting required (goes through /bin/sh), always backgrounded.
--- cfg.exec: quoting + background handled by cfg.spawn_background as before.
+-- Spawn the renderer process. Path handling is backend-specific:
+-- hl.exec_cmd: NO quoting (passes args directly, no shell). Fast but uses
+--   the compositor's minimal PATH — absolute path required.
+-- os.execute: goes through /bin/sh — quoting required. Always backgrounded.
+-- cfg.exec: user-provided function, quoting + background as before.
 local function spawn_renderer(cfg, hl_api, path)
-  -- Verify path-like renderer binaries exist while allowing bare command names
-  -- to be resolved through PATH by the launcher.
+  -- Preflight: verify path-like renderer exists. Bare names skip this check
+  -- since they rely on PATH resolution by the launcher.
   local probe
   if cfg.renderer:find("/", 1, true) then
     probe = io.open(cfg.renderer, "r")
@@ -77,13 +78,8 @@ local function spawn_renderer(cfg, hl_api, path)
     end
     cfg.exec(cmd)
   elseif type(hl_api.exec_cmd) == "function" then
-    -- hl.exec_cmd does NOT use a shell — quoting would embed literal
-    -- quotes in the path and cause FileNotFound. See the known pitfall
-    -- in the hyprland-development skill.
     hl_api.exec_cmd(cfg.renderer .. " " .. path)
   else
-    -- os.execute uses shell; quote path. Always background to avoid
-    -- freezing the compositor thread (os.execute blocks until child exits).
     os.execute(cfg.renderer .. " " .. shell_quote(path) .. " &")
   end
   return true

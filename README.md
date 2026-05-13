@@ -130,7 +130,7 @@ The Lua side writes:
 ## Notes and limitations
 
 - This repository intentionally keeps its `.trellis/` workflow and task/spec history in-tree.
-- The current default renderer path in `easymotion/config.lua` points at `/home/kita/.local/bin/easymotion-render`; override `renderer` if your install path differs.
+- **Renderer path must be absolute.** `hl.exec_cmd()` runs in the compositor's environment which has a minimal `PATH` (typically `/usr/local/bin:/usr/bin`). `~/.local/bin` is not on it, and `~/` tilde expansion does not happen (no shell). Bare command names and `~/` paths will fail silently — the only sign is that labels never appear. Always use the full path: `/home/you/.local/bin/easymotion-render`. Override `renderer` in your config if your install path differs.
 - The Lua entrypoint requires the Hyprland Lua config runtime; calling `require("easymotion").activate()` in a plain standalone Lua interpreter will fail because the global `hl` API is not present there.
 - Because the renderer grabs keyboard input exclusively, live validation is best done manually inside a real Hyprland session.
 
