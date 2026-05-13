@@ -56,6 +56,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 - Missing or invalid JSON file -> print parse/read error and exit non-zero.
 - Missing `labels` array -> renderer error.
 - Malformed label entries -> skip invalid entries instead of crashing.
+- Label objects missing a non-empty `key`, `text`, or `address` -> print a warning and skip before duplicating label strings.
 - Unsafe action replacement value -> reject action and exit non-zero.
 - Action command returns non-zero -> renderer exits non-zero.
 - Wayland connection/display failure -> renderer exits non-zero.
@@ -64,6 +65,7 @@ Backend changes must keep the Lua JSON producer and Zig JSON consumer in lockste
 
 - Good: Lua emits multiple non-fullscreen windows with full style; Zig renders labels and the default action focuses the selected address via `hyprctl eval 'hl.dispatch(hl.dsp.focus({window = "address:<address>"}))'`.
 - Base: Empty eligible window list emits an empty `labels` array; renderer should not crash.
+- Base: A malformed label object is skipped without allocating duplicated required string fields for that invalid label.
 - Bad: Address contains shell metacharacters; renderer must reject it before executing `system()`.
 
 #### 6. Tests Required
@@ -109,6 +111,7 @@ if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 - Does the README JSON contract match Lua generation and Zig parsing?
 - Are action replacement values validated before shell execution?
 - Do action failures propagate to a non-zero renderer exit?
+- Are malformed labels validated before allocating per-label duplicated strings?
 - Are generated artifacts ignored or intentionally committed?
 - Do multi-monitor coordinates account for global positions and output offsets?
 - Are fullscreen and `only_special` behaviors preserved across Lua filtering changes?
