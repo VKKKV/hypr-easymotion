@@ -37,6 +37,7 @@ Lua changes must preserve the launcher-specific quoting rules and the JSON contr
 
 - A renderer value containing `/` is path-like and may be checked with `io.open` before launch.
 - A path-like renderer that cannot be opened must remove the temp JSON file and return `nil, "renderer binary not found: <renderer>"`.
+- The default renderer value is `easymotion-render`.
 - A renderer value with no `/` is a command name. Do not preflight it with `io.open`; the selected launcher resolves it through PATH or reports the failure.
 - `hl.exec_cmd` receives an unquoted `<renderer> <json-file>` string because it passes arguments directly.
 - Shell-backed launchers (`os.execute` and user `cfg.exec`) require shell quoting for the JSON path.
@@ -53,6 +54,7 @@ Lua changes must preserve the launcher-specific quoting rules and the JSON contr
 - Good: `renderer = "/usr/bin/easymotion-render"` exists; Lua writes payload and launches the absolute path.
 - Base: `renderer = "easymotion-render"`; Lua skips filesystem preflight and lets PATH resolve the command.
 - Bad: `renderer = "easymotion-render"` is rejected by `io.open` before the launcher can resolve PATH.
+- Bad: default config points to a developer-local absolute path such as `/home/<user>/.local/bin/easymotion-render`.
 
 #### 6. Tests Required
 
