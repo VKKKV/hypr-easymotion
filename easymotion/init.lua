@@ -58,13 +58,17 @@ end
 -- os.execute: quoting required (goes through /bin/sh), always backgrounded.
 -- cfg.exec: quoting + background handled by cfg.spawn_background as before.
 local function spawn_renderer(cfg, hl_api, path)
-  -- Verify renderer binary exists (catches the most common silent-failure case)
-  local probe = io.open(cfg.renderer, "r")
-  if not probe then
-    os.remove(path)
-    return nil, "renderer binary not found: " .. cfg.renderer
+  -- Verify path-like renderer binaries exist while allowing bare command names
+  -- to be resolved through PATH by the launcher.
+  local probe
+  if cfg.renderer:find("/", 1, true) then
+    probe = io.open(cfg.renderer, "r")
+    if not probe then
+      os.remove(path)
+      return nil, "renderer binary not found: " .. cfg.renderer
+    end
+    probe:close()
   end
-  probe:close()
 
   if type(cfg.exec) == "function" then
     local cmd = cfg.renderer .. " " .. shell_quote(path)

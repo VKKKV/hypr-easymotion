@@ -109,20 +109,23 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
             continue;
         }
         const obj = item.object;
+        const key_src = stringFromValue(obj.get("key"), "");
+        const text_src = stringFromValue(obj.get("text"), "");
+        const address_src = stringFromValue(obj.get("address"), "");
+        if (key_src.len == 0 or text_src.len == 0 or address_src.len == 0) {
+            std.debug.print("easymotion-render: warning: label[{d}] missing required field (key, text, or address), skipping\n", .{idx});
+            continue;
+        }
         labels[count] = .{
-            .key = try allocator.dupeZ(u8, stringFromValue(obj.get("key"), "")),
-            .text = try allocator.dupeZ(u8, stringFromValue(obj.get("text"), "")),
-            .address = try allocator.dupeZ(u8, stringFromValue(obj.get("address"), "")),
+            .key = try allocator.dupeZ(u8, key_src),
+            .text = try allocator.dupeZ(u8, text_src),
+            .address = try allocator.dupeZ(u8, address_src),
             .x = numberFromValue(obj.get("x"), 0),
             .y = numberFromValue(obj.get("y"), 0),
             .w = numberFromValue(obj.get("w"), 1),
             .h = numberFromValue(obj.get("h"), 1),
         };
-        if (labels[count].key.len > 0 and labels[count].text.len > 0 and labels[count].address.len > 0) {
-            count += 1;
-        } else {
-            std.debug.print("easymotion-render: warning: label[{d}] missing required field (key, text, or address), skipping\n", .{idx});
-        }
+        count += 1;
     }
 
     return .{ .action = action, .labels = labels[0..count], .style = style };
