@@ -1,0 +1,2 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check C shim shared-memory and render cleanup changes against runtime guidance."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check Lua default renderer behavior against launch contract guidance."}
