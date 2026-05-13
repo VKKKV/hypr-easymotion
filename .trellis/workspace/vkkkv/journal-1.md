@@ -142,3 +142,38 @@ Archived the remaining easymotion investigation and documentation tasks after th
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Refine launch reliability and label allocation
+
+**Date**: 2026-05-13
+**Task**: Refine launch reliability and label allocation
+**Branch**: `main`
+
+### Summary
+
+Relaxed renderer preflight for PATH-resolved command names, reordered label validation before allocation, and documented the launch/label contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dd8212a` | (see git log) |
+| `9b12e32` | (see git log) |
+| `5201e3e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
