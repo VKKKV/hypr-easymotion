@@ -94,8 +94,19 @@ function Parser:string()
       elseif esc == "u" then
         local hex = self.s:sub(self.i, self.i + 3)
         self.i = self.i + 4
-        local n = tonumber(hex, 16) or 63
-        if n < 128 then out[#out + 1] = string.char(n) else out[#out + 1] = "?" end
+        local n = tonumber(hex, 16)
+        if not n then error("invalid unicode escape at byte " .. (self.i - 4)) end
+        if n < 0x80 then
+          out[#out + 1] = string.char(n)
+        elseif n < 0x800 then
+          out[#out + 1] = string.char(0xC0 + (n >> 6))
+          out[#out + 1] = string.char(0x80 + (n & 0x3F))
+        else
+          -- \uXXXX max is 0xFFFF ⇒ 3-byte UTF-8
+          out[#out + 1] = string.char(0xE0 + (n >> 12))
+          out[#out + 1] = string.char(0x80 + ((n >> 6) & 0x3F))
+          out[#out + 1] = string.char(0x80 + (n & 0x3F))
+        end
       else
         error("invalid escape at byte " .. self.i)
       end
@@ -160,7 +171,14 @@ end
 
 function M.decode(s)
   local p = setmetatable({ s = s, i = 1 }, Parser)
-  local ok, result = pcall(function() return p:value() end)
+  local ok, result = pcall(function()
+    local val = p:value()
+    p:skip_ws()
+    if p.i <= #p.s then
+      error("trailing garbage at byte " .. p.i)
+    end
+    return val
+  end)
   if ok then return result end
   return nil, result
 end

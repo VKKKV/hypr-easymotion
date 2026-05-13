@@ -103,8 +103,11 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
 
     var labels = try allocator.alloc(Label, array.items.len);
     var count: usize = 0;
-    for (array.items) |item| {
-        if (item != .object) continue;
+    for (array.items, 0..) |item, idx| {
+        if (item != .object) {
+            std.debug.print("easymotion-render: warning: label[{d}] is not an object, skipping\n", .{idx});
+            continue;
+        }
         const obj = item.object;
         labels[count] = .{
             .key = try allocator.dupeZ(u8, stringFromValue(obj.get("key"), "")),
@@ -117,6 +120,8 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
         };
         if (labels[count].key.len > 0 and labels[count].text.len > 0 and labels[count].address.len > 0) {
             count += 1;
+        } else {
+            std.debug.print("easymotion-render: warning: label[{d}] missing required field (key, text, or address), skipping\n", .{idx});
         }
     }
 

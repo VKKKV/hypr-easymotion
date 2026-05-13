@@ -32,12 +32,40 @@ local function eligible(client, want_special, active_workspace)
   return true
 end
 
+local function client_sort_key(client)
+  local ws_id = 0
+  if client.workspace and client.workspace.id then
+    ws_id = tonumber(client.workspace.id) or 0
+  end
+  local at_y = tonumber((client.at or {})[2]) or 0
+  local at_x = tonumber((client.at or {})[1]) or 0
+  local addr = client.address or ""
+  return ws_id, at_y, at_x, addr
+end
+
 function M.from_tables(clients, active_workspace, cfg)
+  -- Sort clients deterministically so label keys are stable between
+  -- invocations. Order: workspace id, y position, x position, address.
+  -- Without this, muscle memory breaks when Hyprland returns windows in a
+  -- different order (e.g. after a compositor restart).
+  local sorted = {}
+  for _, c in ipairs(clients or {}) do
+    sorted[#sorted + 1] = c
+  end
+  table.sort(sorted, function(a, b)
+    local a_ws, a_y, a_x, a_addr = client_sort_key(a)
+    local b_ws, b_y, b_x, b_addr = client_sort_key(b)
+    if a_ws ~= b_ws then return a_ws < b_ws end
+    if a_y ~= b_y then return a_y < b_y end
+    if a_x ~= b_x then return a_x < b_x end
+    return a_addr < b_addr
+  end)
+
   local out = {}
   local keys = cfg.motionkeys or "arstneio"
   local want_special = cfg.only_special and active_special(active_workspace)
   local key_index = 1
-  for _, client in ipairs(clients or {}) do
+  for _, client in ipairs(sorted) do
     if eligible(client, want_special, active_workspace) then
       local key = keys:sub(key_index, key_index)
       if key == "" then break end

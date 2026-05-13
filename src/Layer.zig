@@ -224,6 +224,8 @@ fn registryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, inter
             output.* = .{ .wl = c.em_bind_output(registry, name, version) };
             _ = c.wl_output_add_listener(output.wl, &output_listener, output);
             app.output_count += 1;
+        } else {
+            std.debug.print("easymotion-render: warning: output {d} dropped (MAX_OUTPUTS={d} exceeded)\n", .{ name, MAX_OUTPUTS });
         }
     } else if (std.mem.eql(u8, iface, "zwlr_layer_shell_v1")) app.layer_shell = c.em_bind_layer_shell(registry, name, version);
 }

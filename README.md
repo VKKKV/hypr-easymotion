@@ -90,12 +90,13 @@ easymotion.activate({
 
 Current defaults live in `easymotion/config.lua`.
 
-`spawn_background` remains available for shell-based fallback launchers (`cfg.exec` / `os.execute`). It is intentionally ignored when the native Hyprland helper `hl.exec_cmd()` is used, because that path is already fire-and-forget.
+`spawn_background` remains available for shell-based fallback launchers (`cfg.exec` / `os.execute`). It is intentionally ignored when the native Hyprland helper `hl.exec_cmd()` is used, because that path is already fire-and-forget and expects a Hyprland command string in the form `exec <renderer> <json-path>`.
 
 ## Runtime behavior
 
 - Lua calls `hl.get_windows()` from the Hyprland Lua API, converts window userdata into plain Lua tables, filters eligible windows, truncates to `motionkeys`, writes `/tmp/easymotion-*.json`, then starts `easymotion-render`.
 - `activate()` also reads the active workspace through `hl.get_active_workspace()` so special-workspace filtering stays aligned with the live Hyprland state.
+- When `hl.exec_cmd()` is available, `activate()` submits `exec <renderer> <json-path>` to Hyprland and treats success as command acceptance by Hyprland. It cannot synchronously prove that the asynchronously spawned renderer process later initialized successfully.
 - `easymotion-render` expects the JSON path created by `activate()`. A stale or hand-written binding such as `easymotion-render /tmp/does-not-exist` will fail before any overlay can render.
 - Fullscreen windows are currently skipped.
 - When `only_special = true` and the active workspace is special, only special-workspace windows receive labels.
