@@ -1,0 +1,56 @@
+# Maintainer: Your Name <you at example dot com>
+
+pkgname=hypr-easymotion-git
+_pkgname=hypr-easymotion
+pkgver=r40.28762a4
+pkgrel=1
+pkgdesc="Hyprland easymotion window hints: Lua config module plus a Zig Wayland layer-shell renderer"
+arch=('x86_64')
+url="https://git.k174.dev/k/hypr-easymotion"
+license=('GPL-3.0-or-later')
+depends=('wayland' 'cairo' 'pango' 'libxkbcommon' 'glib2' 'lua')
+makedepends=('git' 'zig' 'wayland' 'wayland-protocols' 'pkgconf')
+optdepends=('hyprland: required by the easymotion.activate() Lua frontend')
+provides=("${_pkgname}=${pkgver}")
+conflicts=("${_pkgname}")
+install="${pkgname}.install"
+source=("${_pkgname}::git+https://git.k174.dev/k/hypr-easymotion.git#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "${_pkgname}"
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+  cd "${_pkgname}"
+  # build.zig hardcodes .zig-cache/protocol for the wayland-scanner output, and
+  # that path lives in the build root, not in --cache-dir. Stale glue from an
+  # older checkout must not leak into a rebuilt package.
+  rm -rf .zig-cache zig-out
+}
+
+build() {
+  cd "${_pkgname}"
+  # zig 0.17 dropped --global-cache-dir as a CLI flag; the env var still works.
+  export ZIG_GLOBAL_CACHE_DIR="$srcdir/zig-global-cache"
+  DESTDIR="$srcdir/destdir" zig build \
+    -Doptimize=ReleaseSafe \
+    --cache-dir "$srcdir/zig-cache" \
+    --prefix /usr \
+    --build-id=sha1
+}
+
+package() {
+  cd "${_pkgname}"
+
+  cp -a "$srcdir/destdir/." "$pkgdir/"
+
+  # build.zig only knows about the renderer; the Lua modules ship here so that
+  # a bare require("easymotion") resolves through lua 5.5's default package.path.
+  install -d "$pkgdir/usr/share/lua/5.5/easymotion"
+  install -m644 easymotion/*.lua "$pkgdir/usr/share/lua/5.5/easymotion/"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

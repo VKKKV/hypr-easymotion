@@ -1,0 +1,43 @@
+# Maintainer: Your Name <you at example dot com>
+
+pkgname=hypr-easymotion
+_pkgname=hypr-easymotion
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Hyprland easymotion window hints: Lua config module plus a Zig Wayland layer-shell renderer"
+arch=('x86_64')
+url="https://git.k174.dev/k/hypr-easymotion"
+license=('GPL-3.0-or-later')
+depends=('wayland' 'cairo' 'pango' 'libxkbcommon' 'glib2' 'lua')
+makedepends=('git' 'zig' 'wayland' 'wayland-protocols' 'pkgconf')
+optdepends=('hyprland: required by the easymotion.activate() Lua frontend')
+install="${pkgname}.install"
+source=("${_pkgname}::git+https://git.k174.dev/k/hypr-easymotion.git#tag=v${pkgver}")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "${_pkgname}"
+  rm -rf .zig-cache zig-out
+}
+
+build() {
+  cd "${_pkgname}"
+  export ZIG_GLOBAL_CACHE_DIR="$srcdir/zig-global-cache"
+  DESTDIR="$srcdir/destdir" zig build \
+    -Doptimize=ReleaseSafe \
+    --cache-dir "$srcdir/zig-cache" \
+    --prefix /usr \
+    --build-id=sha1
+}
+
+package() {
+  cd "${_pkgname}"
+
+  cp -a "$srcdir/destdir/." "$pkgdir/"
+
+  install -d "$pkgdir/usr/share/lua/5.5/easymotion"
+  install -m644 easymotion/*.lua "$pkgdir/usr/share/lua/5.5/easymotion/"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
