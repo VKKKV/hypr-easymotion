@@ -1,7 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/mman.h>
 #include <wayland-client.h>
+#include <xkbcommon/xkbcommon.h>
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
 struct wl_compositor *em_bind_compositor(struct wl_registry *registry, uint32_t name, uint32_t version);
@@ -16,8 +20,10 @@ void em_layer_surface_set_fullscreen(struct zwlr_layer_surface_v1 *surface);
 void em_layer_surface_ack_configure(struct zwlr_layer_surface_v1 *surface, uint32_t serial);
 
 struct wl_keyboard *em_seat_get_keyboard(struct wl_seat *seat);
+void em_keyboard_destroy(struct wl_keyboard *keyboard);
 struct wl_shm_pool *em_shm_create_pool(struct wl_shm *shm, int fd, int32_t size);
 struct wl_buffer *em_shm_pool_create_argb8888_buffer(struct wl_shm_pool *pool, int32_t width, int32_t height, int32_t stride);
+void em_surface_set_buffer_scale(struct wl_surface *surface, int32_t scale);
 void em_surface_attach_damage_commit(struct wl_surface *surface, struct wl_buffer *buffer, int32_t width, int32_t height);
 int em_create_shm_file(int32_t size);
 

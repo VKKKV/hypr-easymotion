@@ -62,12 +62,25 @@ struct wl_keyboard *em_seat_get_keyboard(struct wl_seat *seat) {
     return wl_seat_get_keyboard(seat);
 }
 
+void em_keyboard_destroy(struct wl_keyboard *keyboard) {
+    if (!keyboard) return;
+    if (wl_proxy_get_version((struct wl_proxy *)keyboard) >= WL_KEYBOARD_RELEASE_SINCE_VERSION) {
+        wl_keyboard_release(keyboard);
+    } else {
+        wl_keyboard_destroy(keyboard);
+    }
+}
+
 struct wl_shm_pool *em_shm_create_pool(struct wl_shm *shm, int fd, int32_t size) {
     return wl_shm_create_pool(shm, fd, size);
 }
 
 struct wl_buffer *em_shm_pool_create_argb8888_buffer(struct wl_shm_pool *pool, int32_t width, int32_t height, int32_t stride) {
     return wl_shm_pool_create_buffer(pool, 0, width, height, stride, WL_SHM_FORMAT_ARGB8888);
+}
+
+void em_surface_set_buffer_scale(struct wl_surface *surface, int32_t scale) {
+    if (surface && scale > 0) wl_surface_set_buffer_scale(surface, scale);
 }
 
 void em_surface_attach_damage_commit(struct wl_surface *surface, struct wl_buffer *buffer, int32_t width, int32_t height) {
@@ -125,6 +138,7 @@ int em_render_labels(unsigned char *data, int32_t width, int32_t height, int32_t
     if (!surface || cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) return -1;
     cairo_t *cr = cairo_create(surface);
     if (!cr || cairo_status(cr) != CAIRO_STATUS_SUCCESS) {
+        if (cr) cairo_destroy(cr);
         cairo_surface_destroy(surface);
         return -1;
     }

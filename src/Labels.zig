@@ -1,7 +1,5 @@
 const std = @import("std");
-const c = @cImport({
-    @cInclude("stdlib.h");
-});
+const c = @import("c");
 
 pub const Color = [4]f64;
 
@@ -58,6 +56,14 @@ fn numberFromValue(value: ?std.json.Value, default: f64) f64 {
     };
 }
 
+fn finiteOr(value: f64, default: f64) f64 {
+    return if (std.math.isFinite(value)) value else default;
+}
+
+fn clampNumber(value: ?std.json.Value, default: f64, min: f64, max: f64) f64 {
+    return std.math.clamp(finiteOr(numberFromValue(value, default), default), min, max);
+}
+
 fn stringFromValue(value: ?std.json.Value, default: []const u8) []const u8 {
     if (value == null) return default;
     return switch (value.?) {
@@ -76,23 +82,23 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
     };
 
     const action_src = stringFromValue(root.get("action"), "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'");
-    const action = try allocator.dupeZ(u8, action_src);
+    const action = try allocator.dupeSentinel(u8, action_src, 0);
 
     var style = Style{};
     if (root.get("style")) |style_value| {
         if (style_value == .object) {
             const obj = style_value.object;
-            style.textsize = numberFromValue(obj.get("textsize"), style.textsize);
-            style.textpadding = numberFromValue(obj.get("textpadding"), style.textpadding);
-            style.rounding = numberFromValue(obj.get("rounding"), style.rounding);
-            style.bordersize = numberFromValue(obj.get("bordersize"), style.bordersize);
-            style.textfont = try allocator.dupeZ(u8, stringFromValue(obj.get("textfont"), style.textfont));
+            style.textsize = clampNumber(obj.get("textsize"), style.textsize, 1, 4096);
+            style.textpadding = clampNumber(obj.get("textpadding"), style.textpadding, 0, 1024);
+            style.rounding = clampNumber(obj.get("rounding"), style.rounding, 0, 1024);
+            style.bordersize = clampNumber(obj.get("bordersize"), style.bordersize, 0, 1024);
+            style.textfont = try allocator.dupeSentinel(u8, stringFromValue(obj.get("textfont"), style.textfont), 0);
             if (obj.get("textcolor")) |v| style.textcolor = colorFromValue(v, style.textcolor);
             if (obj.get("bgcolor")) |v| style.bgcolor = colorFromValue(v, style.bgcolor);
             if (obj.get("bordercolor")) |v| style.bordercolor = colorFromValue(v, style.bordercolor);
         }
     } else {
-        style.textfont = try allocator.dupeZ(u8, style.textfont);
+        style.textfont = try allocator.dupeSentinel(u8, style.textfont, 0);
     }
 
     const label_value = root.get("labels") orelse return error.MissingLabels;
@@ -117,13 +123,13 @@ pub fn parseConfig(allocator: std.mem.Allocator, bytes: []const u8) !Config {
             continue;
         }
         labels[count] = .{
-            .key = try allocator.dupeZ(u8, key_src),
-            .text = try allocator.dupeZ(u8, text_src),
-            .address = try allocator.dupeZ(u8, address_src),
-            .x = numberFromValue(obj.get("x"), 0),
-            .y = numberFromValue(obj.get("y"), 0),
-            .w = numberFromValue(obj.get("w"), 1),
-            .h = numberFromValue(obj.get("h"), 1),
+            .key = try allocator.dupeSentinel(u8, key_src, 0),
+            .text = try allocator.dupeSentinel(u8, text_src, 0),
+            .address = try allocator.dupeSentinel(u8, address_src, 0),
+            .x = finiteOr(numberFromValue(obj.get("x"), 0), 0),
+            .y = finiteOr(numberFromValue(obj.get("y"), 0), 0),
+            .w = finiteOr(numberFromValue(obj.get("w"), 1), 1),
+            .h = finiteOr(numberFromValue(obj.get("h"), 1), 1),
         };
         count += 1;
     }
@@ -144,7 +150,7 @@ pub fn runAction(allocator: std.mem.Allocator, action_template: []const u8, addr
     if (std.mem.indexOf(u8, action_template, "{}") != null and !isSafeActionValue(address)) return error.InvalidActionValue;
     const command = try std.mem.replaceOwned(u8, allocator, action_template, "{}", address);
     defer allocator.free(command);
-    const command_z = try allocator.dupeZ(u8, command);
+    const command_z = try allocator.dupeSentinel(u8, command, 0);
     defer allocator.free(command_z);
     if (c.system(command_z.ptr) != 0) return error.ActionFailed;
 }

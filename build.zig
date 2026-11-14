@@ -7,22 +7,26 @@ pub fn build(b: *std.Build) void {
     const protocol_dir = b.path(".zig-cache/protocol");
     const mkdir = b.addSystemCommand(&.{ "mkdir", "-p", ".zig-cache/protocol" });
 
-    const layer_xml = "protocol/wlr-layer-shell-unstable-v1.xml";
-    const gen_header = b.addSystemCommand(&.{
-        "wayland-scanner",
-        "client-header",
-        layer_xml,
-        ".zig-cache/protocol/wlr-layer-shell-unstable-v1-client-protocol.h",
-    });
+    const layer_xml = b.path("protocol/wlr-layer-shell-unstable-v1.xml");
+    const gen_header = b.addSystemCommand(&.{ "wayland-scanner", "client-header" });
+    gen_header.addFileArg(layer_xml);
+    gen_header.addArg(".zig-cache/protocol/wlr-layer-shell-unstable-v1-client-protocol.h");
     gen_header.step.dependOn(&mkdir.step);
 
-    const gen_code = b.addSystemCommand(&.{
-        "wayland-scanner",
-        "private-code",
-        layer_xml,
-        ".zig-cache/protocol/wlr-layer-shell-unstable-v1-protocol.c",
-    });
+    const gen_code = b.addSystemCommand(&.{ "wayland-scanner", "private-code" });
+    gen_code.addFileArg(layer_xml);
+    gen_code.addArg(".zig-cache/protocol/wlr-layer-shell-unstable-v1-protocol.c");
     gen_code.step.dependOn(&mkdir.step);
+
+    // C glue is translated once and imported by name; @cImport no longer exists.
+    const translate = b.addTranslateC(.{
+        .root_source_file = b.path("src/c/shim.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    translate.addIncludePath(b.path("src/c"));
+    translate.addIncludePath(protocol_dir);
+    translate.step.dependOn(&gen_header.step);
 
     const exe = b.addExecutable(.{
         .name = "easymotion-render",
@@ -33,8 +37,8 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.step.dependOn(&gen_header.step);
     exe.step.dependOn(&gen_code.step);
+    exe.root_module.addImport("c", translate.createModule());
     exe.root_module.addIncludePath(protocol_dir);
     exe.root_module.addIncludePath(b.path("src/c"));
     exe.root_module.addCSourceFile(.{ .file = b.path(".zig-cache/protocol/wlr-layer-shell-unstable-v1-protocol.c") });

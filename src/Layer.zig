@@ -1,18 +1,15 @@
 const std = @import("std");
 const Labels = @import("Labels.zig");
 
-const c = @cImport({
-    @cInclude("unistd.h");
-    @cInclude("sys/mman.h");
-    @cInclude("wayland-client.h");
-    @cInclude("xkbcommon/xkbcommon.h");
-    @cInclude("shim.h");
-});
+const c = @import("c");
 
 const KEY_ESC: u32 = 0xff1b;
 const KEY_RELEASED: u32 = 0;
 const KEY_PRESSED: u32 = 1;
 const MAX_OUTPUTS: usize = 16;
+// Buffer sizes are validated before use: shm offsets and cairo strides are i32.
+const MAX_BUFFER_SIDE: i64 = 32768;
+const MAX_BUFFER_BYTES: i64 = 512 * 1024 * 1024;
 
 const Output = struct {
     app: ?*App = null,
@@ -32,7 +29,9 @@ const Output = struct {
     rendered_y: i32 = 0,
     rendered_width: i32 = 0,
     rendered_height: i32 = 0,
+    rendered_scale: i32 = 1,
     rendered: bool = false,
+    scale: i32 = 1,
 };
 
 pub const App = struct {
@@ -51,7 +50,7 @@ pub const App = struct {
     running: bool = true,
     action_failed: bool = false,
     pending_address: ?[]const u8 = null,
-    outputs: [MAX_OUTPUTS]Output = [_]Output{.{}} ** MAX_OUTPUTS,
+    outputs: [MAX_OUTPUTS]Output = @splat(.{}),
     output_count: usize = 0,
 
     pub fn run(self: *App) !void {
@@ -78,7 +77,9 @@ pub const App = struct {
         self.keyboard = c.em_seat_get_keyboard(self.seat) orelse return error.KeyboardFailed;
         _ = c.wl_keyboard_add_listener(self.keyboard, &keyboard_listener, self);
 
-        while (self.running and c.wl_display_dispatch(self.display) >= 0) {}
+        while (self.running) {
+            if (c.wl_display_dispatch(self.display) < 0) return error.DisplayDispatchFailed;
+        }
         if (self.pending_address) |address| {
             self.releaseOverlay() catch |err| {
                 std.debug.print("easymotion-render: overlay teardown failed: {s}\n", .{@errorName(err)});
@@ -95,7 +96,7 @@ pub const App = struct {
 
     fn releaseOverlay(self: *App) !void {
         if (self.keyboard) |keyboard| {
-            c.wl_keyboard_destroy(keyboard);
+            c.em_keyboard_destroy(keyboard);
             self.keyboard = null;
         }
 
@@ -123,10 +124,11 @@ pub const App = struct {
     }
 
     fn resetOutputBuffer(_: *App, output: *Output) void {
-        if (output.shm_data) |data| _ = c.munmap(data, output.shm_size);
-        if (output.shm_fd >= 0) _ = c.close(output.shm_fd);
+        // Drop the proxies before releasing the memory they point at.
         if (output.buffer) |p| c.wl_buffer_destroy(p);
         if (output.shm_pool) |p| c.wl_shm_pool_destroy(p);
+        if (output.shm_data) |data| _ = c.munmap(data, output.shm_size);
+        if (output.shm_fd >= 0) _ = c.close(output.shm_fd);
         output.buffer = null;
         output.shm_pool = null;
         output.shm_fd = -1;
@@ -137,24 +139,42 @@ pub const App = struct {
     fn tryRenderOutput(self: *App, output: *Output) !void {
         if (output.surface == null or output.layer_surface == null) return;
         if (output.width <= 1 or output.height <= 1) return;
-        if (output.rendered and output.rendered_x == output.x and output.rendered_y == output.y and output.rendered_width == output.width and output.rendered_height == output.height) return;
+        const scale: i32 = if (output.scale > 0) output.scale else 1;
+        if (output.rendered and output.rendered_x == output.x and output.rendered_y == output.y and
+            output.rendered_width == output.width and output.rendered_height == output.height and
+            output.rendered_scale == scale) return;
 
-        const stride: i32 = output.width * 4;
-        const size: i32 = stride * output.height;
-        if (output.buffer == null or output.rendered_width != output.width or output.rendered_height != output.height) {
+        const buf_width: i64 = @as(i64, output.width) * scale;
+        const buf_height: i64 = @as(i64, output.height) * scale;
+        const stride64: i64 = buf_width * 4;
+        const size64: i64 = stride64 * buf_height;
+        if (buf_width <= 1 or buf_height <= 1 or buf_width > MAX_BUFFER_SIDE or buf_height > MAX_BUFFER_SIDE or
+            size64 <= 0 or size64 > MAX_BUFFER_BYTES) return error.OutputTooLarge;
+        const stride: i32 = @intCast(stride64);
+        const size: i32 = @intCast(size64);
+
+        const rebuild = output.buffer == null or output.rendered_scale != scale or
+            output.rendered_width != output.width or output.rendered_height != output.height;
+        if (rebuild) {
             self.resetOutputBuffer(output);
             output.shm_fd = c.em_create_shm_file(size);
             if (output.shm_fd < 0) return error.ShmFileFailed;
             output.shm_size = @intCast(size);
             const mapped = c.mmap(null, output.shm_size, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, output.shm_fd, 0);
-            if (mapped == c.MAP_FAILED) return error.MmapFailed;
+            if (mapped == c.MAP_FAILED) {
+                self.resetOutputBuffer(output);
+                return error.MmapFailed;
+            }
             output.shm_data = @ptrCast(mapped);
             output.shm_pool = c.em_shm_create_pool(self.shm, output.shm_fd, size) orelse return error.ShmPoolFailed;
-            output.buffer = c.em_shm_pool_create_argb8888_buffer(output.shm_pool, output.width, output.height, stride) orelse return error.BufferFailed;
+            output.buffer = c.em_shm_pool_create_argb8888_buffer(output.shm_pool, @intCast(buf_width), @intCast(buf_height), stride) orelse return error.BufferFailed;
         }
 
+        if (output.surface) |surface| c.em_surface_set_buffer_scale(surface, scale);
+
+        const scale_f = @as(f64, @floatFromInt(scale));
         var c_style = c.em_style{
-            .textsize = self.config.style.textsize,
+            .textsize = self.config.style.textsize * scale_f,
             .textcolor = self.config.style.textcolor,
             .bgcolor = self.config.style.bgcolor,
             .textfont = self.config.style.textfont.ptr,
@@ -166,14 +186,21 @@ pub const App = struct {
         var c_labels = try self.allocator.alloc(c.em_label, self.config.labels.len);
         defer self.allocator.free(c_labels);
         for (self.config.labels, 0..) |label, i| {
-            c_labels[i] = .{ .text = label.text.ptr, .x = label.x - @as(f64, @floatFromInt(output.x)), .y = label.y - @as(f64, @floatFromInt(output.y)), .w = label.w, .h = label.h };
+            c_labels[i] = .{
+                .text = label.text.ptr,
+                .x = (label.x - @as(f64, @floatFromInt(output.x))) * scale_f,
+                .y = (label.y - @as(f64, @floatFromInt(output.y))) * scale_f,
+                .w = label.w * scale_f,
+                .h = label.h * scale_f,
+            };
         }
-        if (c.em_render_labels(output.shm_data.?, output.width, output.height, stride, &c_style, c_labels.ptr, @intCast(c_labels.len)) != 0) return error.RenderFailed;
-        c.em_surface_attach_damage_commit(output.surface, output.buffer, output.width, output.height);
+        if (c.em_render_labels(output.shm_data.?, @intCast(buf_width), @intCast(buf_height), stride, &c_style, c_labels.ptr, @intCast(c_labels.len)) != 0) return error.RenderFailed;
+        c.em_surface_attach_damage_commit(output.surface, output.buffer, @intCast(buf_width), @intCast(buf_height));
         output.rendered_x = output.x;
         output.rendered_y = output.y;
         output.rendered_width = output.width;
         output.rendered_height = output.height;
+        output.rendered_scale = scale;
         output.rendered = true;
     }
 
@@ -189,12 +216,21 @@ pub const App = struct {
         if (len <= 0) return;
         const typed = buf[0..@as(usize, @intCast(len - 1))];
         for (self.config.labels) |label| {
-            if (std.mem.eql(u8, typed, label.key)) {
+            if (std.ascii.eqlIgnoreCase(typed, label.key)) {
                 self.pending_address = label.address;
                 self.running = false;
                 return;
             }
         }
+    }
+
+    fn replaceKeymap(self: *App, context: *c.xkb_context, keymap: *c.xkb_keymap, state: *c.xkb_state) void {
+        if (self.xkb_state) |p| c.xkb_state_unref(p);
+        if (self.xkb_keymap) |p| c.xkb_keymap_unref(p);
+        if (self.xkb_context) |p| c.xkb_context_unref(p);
+        self.xkb_context = context;
+        self.xkb_keymap = keymap;
+        self.xkb_state = state;
     }
 
     pub fn deinit(self: *App) void {
@@ -210,7 +246,7 @@ pub const App = struct {
         if (self.xkb_state) |p| c.xkb_state_unref(p);
         if (self.xkb_keymap) |p| c.xkb_keymap_unref(p);
         if (self.xkb_context) |p| c.xkb_context_unref(p);
-        if (self.keyboard) |p| c.wl_keyboard_destroy(p);
+        if (self.keyboard) |p| c.em_keyboard_destroy(p);
         if (self.display) |p| c.wl_display_disconnect(p);
     }
 };
@@ -220,9 +256,13 @@ fn registryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, inter
     const iface = std.mem.span(interface);
     if (std.mem.eql(u8, iface, "wl_compositor")) app.compositor = c.em_bind_compositor(registry, name, version) else if (std.mem.eql(u8, iface, "wl_shm")) app.shm = c.em_bind_shm(registry, name, version) else if (std.mem.eql(u8, iface, "wl_seat")) app.seat = c.em_bind_seat(registry, name, version) else if (std.mem.eql(u8, iface, "wl_output")) {
         if (app.output_count < MAX_OUTPUTS) {
+            const wl_output = c.em_bind_output(registry, name, version) orelse {
+                std.debug.print("easymotion-render: warning: wl_output bind failed for global {d}\n", .{name});
+                return;
+            };
             const output = &app.outputs[app.output_count];
-            output.* = .{ .wl = c.em_bind_output(registry, name, version) };
-            _ = c.wl_output_add_listener(output.wl, &output_listener, output);
+            output.* = .{ .wl = wl_output };
+            _ = c.wl_output_add_listener(wl_output, &output_listener, output);
             app.output_count += 1;
         } else {
             std.debug.print("easymotion-render: warning: output {d} dropped (MAX_OUTPUTS={d} exceeded)\n", .{ name, MAX_OUTPUTS });
@@ -260,7 +300,16 @@ fn outputMode(data: ?*anyopaque, _: ?*c.wl_output, flags: u32, width: i32, heigh
 }
 
 fn outputDone(_: ?*anyopaque, _: ?*c.wl_output) callconv(.c) void {}
-fn outputScale(_: ?*anyopaque, _: ?*c.wl_output, _: i32) callconv(.c) void {}
+fn outputScale(data: ?*anyopaque, _: ?*c.wl_output, factor: i32) callconv(.c) void {
+    const output: *Output = @ptrCast(@alignCast(data.?));
+    output.scale = if (factor > 0) factor else 1;
+    if (output.app) |app| {
+        app.tryRenderOutput(output) catch |err| {
+            std.debug.print("easymotion-render: render failed: {s}\n", .{@errorName(err)});
+            app.running = false;
+        };
+    }
+}
 fn outputName(_: ?*anyopaque, _: ?*c.wl_output, _: [*c]const u8) callconv(.c) void {}
 fn outputDescription(_: ?*anyopaque, _: ?*c.wl_output, _: [*c]const u8) callconv(.c) void {}
 
@@ -283,6 +332,10 @@ fn layerConfigure(data: ?*anyopaque, surface: ?*c.struct_zwlr_layer_surface_v1, 
         std.debug.print("easymotion-render: render failed: {s}\n", .{@errorName(err)});
         app.running = false;
     };
+    // A configure must be answered with a commit even when there is nothing to draw yet.
+    if (!output.rendered) {
+        if (output.surface) |s| c.wl_surface_commit(s);
+    }
 }
 
 fn layerClosed(data: ?*anyopaque, _: ?*c.struct_zwlr_layer_surface_v1) callconv(.c) void {
@@ -297,13 +350,22 @@ fn keyboardKeymap(data: ?*anyopaque, _: ?*c.wl_keyboard, format: u32, fd: i32, s
     const app: *App = @ptrCast(@alignCast(data.?));
     defer _ = c.close(fd);
     if (format != c.WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) return;
+    if (size == 0) return;
     const mapped = c.mmap(null, size, c.PROT_READ, c.MAP_PRIVATE, fd, 0);
     if (mapped == c.MAP_FAILED) return;
     defer _ = c.munmap(mapped, size);
 
-    app.xkb_context = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS);
-    app.xkb_keymap = c.xkb_keymap_new_from_string(app.xkb_context, @ptrCast(mapped), c.XKB_KEYMAP_FORMAT_TEXT_V1, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
-    app.xkb_state = c.xkb_state_new(app.xkb_keymap);
+    const context = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS) orelse return;
+    const keymap = c.xkb_keymap_new_from_string(context, @ptrCast(mapped), c.XKB_KEYMAP_FORMAT_TEXT_V1, c.XKB_KEYMAP_COMPILE_NO_FLAGS) orelse {
+        c.xkb_context_unref(context);
+        return;
+    };
+    const state = c.xkb_state_new(keymap) orelse {
+        c.xkb_keymap_unref(keymap);
+        c.xkb_context_unref(context);
+        return;
+    };
+    app.replaceKeymap(context, keymap, state);
 }
 
 fn keyboardEnter(_: ?*anyopaque, _: ?*c.wl_keyboard, _: u32, _: ?*c.wl_surface, _: ?*c.wl_array) callconv(.c) void {}
