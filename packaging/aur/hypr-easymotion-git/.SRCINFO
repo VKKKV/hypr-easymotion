@@ -1,6 +1,6 @@
 pkgbase = hypr-easymotion-git
 	pkgdesc = Hyprland easymotion window hints: Lua config module plus a Zig Wayland layer-shell renderer
-	pkgver = r40.28762a4
+	pkgver = r43.f4e467a
 	pkgrel = 1
 	url = https://git.k174.dev/k/hypr-easymotion
 	install = hypr-easymotion-git.install
@@ -18,7 +18,7 @@ pkgbase = hypr-easymotion-git
 	depends = glib2
 	depends = lua
 	optdepends = hyprland: required by the easymotion.activate() Lua frontend
-	provides = hypr-easymotion=r40.28762a4
+	provides = hypr-easymotion=r43.f4e467a
 	conflicts = hypr-easymotion
 	source = hypr-easymotion::git+https://git.k174.dev/k/hypr-easymotion.git#branch=main
 	sha256sums = SKIP

@@ -2,7 +2,7 @@
 
 pkgname=hypr-easymotion-git
 _pkgname=hypr-easymotion
-pkgver=r40.28762a4
+pkgver=r43.f4e467a
 pkgrel=1
 pkgdesc="Hyprland easymotion window hints: Lua config module plus a Zig Wayland layer-shell renderer"
 arch=('x86_64')
