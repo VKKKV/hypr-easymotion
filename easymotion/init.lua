@@ -21,12 +21,23 @@ local function shell_quote(s)
   return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
 end
 
--- Generate a unique temp file path in /tmp. Tries up to 10 random names.
+-- Payload directory: the per-user runtime dir is private (0700); /tmp is the
+-- fallback for systems that do not set XDG_RUNTIME_DIR.
+local function payload_dir()
+  local dir = os.getenv("XDG_RUNTIME_DIR")
+  if dir and dir ~= "" then
+    return dir
+  end
+  return "/tmp"
+end
+
+-- Generate a unique temp file path. Tries up to 10 random names.
 -- The caller is responsible for eventual cleanup if the renderer fails to start.
 local function tmpfile()
   local sig = os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or tostring(os.time())
+  local dir = payload_dir()
   for _ = 1, 10 do
-    local name = string.format("/tmp/easymotion-%s-%08d.json", sig, math.random(0, 99999999))
+    local name = string.format("%s/easymotion-%s-%08d.json", dir, sig, math.random(0, 99999999))
     local probe = io.open(name, "r")
     if not probe then
       return name
@@ -43,12 +54,16 @@ local function write_payload(path, cfg, rendered_labels)
     return nil, "failed to open temp file: " .. err
   end
   local ok, write_err = pcall(function()
-    f:write(json.encode(build_payload(cfg, rendered_labels)))
+    assert(f:write(json.encode(build_payload(cfg, rendered_labels))))
   end)
-  f:close()
+  local closed = f:close()
   if not ok then
     os.remove(path)
     return nil, "failed to write temp file: " .. tostring(write_err)
+  end
+  if not closed then
+    os.remove(path)
+    return nil, "failed to close temp file"
   end
   return true
 end
@@ -72,15 +87,20 @@ local function spawn_renderer(cfg, hl_api, path)
   end
 
   if type(cfg.exec) == "function" then
-    local cmd = cfg.renderer .. " " .. shell_quote(path)
+    local cmd = shell_quote(cfg.renderer) .. " " .. shell_quote(path)
     if cfg.spawn_background then
       cmd = cmd .. " &"
     end
-    cfg.exec(cmd)
+    local ok, exec_err = pcall(cfg.exec, cmd)
+    if not ok then
+      os.remove(path)
+      return nil, "custom exec failed: " .. tostring(exec_err)
+    end
   elseif type(hl_api.exec_cmd) == "function" then
     hl_api.exec_cmd(cfg.renderer .. " " .. path)
   else
-    os.execute(cfg.renderer .. " " .. shell_quote(path) .. " &")
+    local suffix = cfg.spawn_background and " &" or ""
+    os.execute(shell_quote(cfg.renderer) .. " " .. shell_quote(path) .. suffix)
   end
   return true
 end
@@ -102,6 +122,17 @@ build_payload = function(cfg, rendered_labels)
   }
 end
 
+-- Hyprland reports geometry either as numbers or as vectors; accept both.
+local function coord(value, axis, default)
+  if type(value) == "number" then return value end
+  if type(value) == "table" then
+    local v = value[axis]
+    if v == nil then v = value[axis == "x" and 1 or 2] end
+    if type(v) == "number" then return v end
+  end
+  return default
+end
+
 -- Convert HL API window userdata to the table format labels.from_tables expects
 local function window_to_client(w)
   return {
@@ -109,14 +140,8 @@ local function window_to_client(w)
     mapped = w.mapped,
     hidden = w.hidden,
     fullscreen = w.fullscreen or 0,
-    at = {
-      w.at and w.at.x or 0,
-      w.at and w.at.y or 0,
-    },
-    size = {
-      w.size and w.size.x or 0,
-      w.size and w.size.y or 0,
-    },
+    at = { coord(w.at, "x", 0), coord(w.at, "y", 0) },
+    size = { coord(w.size, "x", 0), coord(w.size, "y", 0) },
     workspace = {
       id = w.workspace and w.workspace.id,
       name = w.workspace and w.workspace.name,

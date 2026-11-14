@@ -4,7 +4,7 @@ M.defaults = {
   motionkeys = "arstneio",
   action = "hyprctl eval 'hl.dispatch(hl.dsp.focus({window = \"address:{}\"}))'",
   only_special = true,
-  renderer = "/home/user/.local/bin/easymotion-render",
+  renderer = "/usr/bin/easymotion-render",
   spawn_background = true,
 
   textsize = 128,

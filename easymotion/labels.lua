@@ -6,6 +6,14 @@ local function starts_with(s, prefix)
   return type(s) == "string" and s:sub(1, #prefix) == prefix
 end
 
+-- motionkeys are indexed by codepoint, so multi-byte keys stay valid UTF-8.
+local function nth_char(s, n)
+  local start = utf8.offset(s, n)
+  if not start then return "" end
+  local stop = utf8.offset(s, n + 1) or (#s + 1)
+  return s:sub(start, stop - 1)
+end
+
 local function is_special_workspace(workspace)
   if type(workspace) ~= "table" then return false end
   return starts_with(workspace.name or "", "special") or (tonumber(workspace.id) or 0) < 0
@@ -19,11 +27,11 @@ local function eligible(client, want_special, active_workspace)
   if type(client) ~= "table" then return false end
   if client.mapped == false or client.hidden == true then return false end
   if tonumber(client.fullscreen or 0) ~= 0 then return false end
-  -- Only show windows on the active workspace
+  -- Only show windows on the active workspace; unknown workspace is excluded
   local active_workspace_id = active_workspace and tonumber(active_workspace.id)
+  local client_ws_id = client.workspace and tonumber(client.workspace.id)
   if active_workspace_id then
-    local client_ws_id = client.workspace and tonumber(client.workspace.id)
-    if client_ws_id and client_ws_id ~= active_workspace_id then
+    if not client_ws_id or client_ws_id ~= active_workspace_id then
       return false
     end
   end
@@ -67,7 +75,7 @@ function M.from_tables(clients, active_workspace, cfg)
   local key_index = 1
   for _, client in ipairs(sorted) do
     if eligible(client, want_special, active_workspace) then
-      local key = keys:sub(key_index, key_index)
+      local key = nth_char(keys, key_index)
       if key == "" then break end
       local x = tonumber(client.at[1]) or 0
       local y = tonumber(client.at[2]) or 0
