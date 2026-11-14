@@ -9,7 +9,7 @@ arch=('x86_64')
 url="https://git.k174.dev/k/hypr-easymotion"
 license=('GPL-3.0-or-later')
 depends=('wayland' 'cairo' 'pango' 'libxkbcommon' 'glib2' 'lua')
-makedepends=('git' 'zig' 'wayland' 'wayland-protocols' 'pkgconf')
+makedepends=('git' 'zig' 'wayland' 'pkgconf')
 optdepends=('hyprland: required by the easymotion.activate() Lua frontend')
 provides=("${_pkgname}=${pkgver}")
 conflicts=("${_pkgname}")

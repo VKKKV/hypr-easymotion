@@ -8,7 +8,6 @@
   zig,
   pkg-config,
   wayland,
-  wayland-protocols,
   wayland-scanner,
   cairo,
   pango,
@@ -22,7 +21,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   inherit src;
 
-  nativeBuildInputs = [zig pkg-config wayland wayland-scanner wayland-protocols];
+  nativeBuildInputs = [zig pkg-config wayland wayland-scanner];
   buildInputs = [wayland cairo pango libxkbcommon glib];
 
   # build.zig 把 wayland-scanner 的输出写进 ./.zig-cache/protocol，

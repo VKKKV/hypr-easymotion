@@ -9,7 +9,6 @@ pkgbase = hypr-easymotion
 	makedepends = git
 	makedepends = zig
 	makedepends = wayland
-	makedepends = wayland-protocols
 	makedepends = pkgconf
 	depends = wayland
 	depends = cairo
