@@ -9,11 +9,12 @@
   pkg-config,
   wayland,
   wayland-protocols,
+  wayland-scanner,
   cairo,
   pango,
   libxkbcommon,
   glib,
-  src ? ../.,
+  src,
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "hypr-easymotion";
@@ -21,7 +22,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   inherit src;
 
-  nativeBuildInputs = [zig pkg-config wayland wayland-protocols];
+  nativeBuildInputs = [zig pkg-config wayland wayland-scanner wayland-protocols];
   buildInputs = [wayland cairo pango libxkbcommon glib];
 
   # build.zig 把 wayland-scanner 的输出写进 ./.zig-cache/protocol，
