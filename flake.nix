@@ -12,8 +12,8 @@
       nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
   in {
     packages = eachSystem (pkgs: {
-      default = pkgs.callPackage ./nix/package.nix {};
-      hypr-easymotion = pkgs.callPackage ./nix/package.nix {};
+      default = pkgs.callPackage ./nix/package.nix {src = ./.;};
+      hypr-easymotion = pkgs.callPackage ./nix/package.nix {src = ./.;};
     });
 
     devShells = eachSystem (pkgs: {
